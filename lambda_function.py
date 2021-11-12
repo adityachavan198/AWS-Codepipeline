@@ -7,7 +7,7 @@ import os
 import logging
 import boto3
 import requests
-
+#Made some changes
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
