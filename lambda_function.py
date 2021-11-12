@@ -8,7 +8,6 @@ import logging
 import boto3
 import requests
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
