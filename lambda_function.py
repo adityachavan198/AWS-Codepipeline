@@ -7,10 +7,10 @@ import os
 import logging
 import boto3
 import requests
-#Made some changes
+
+
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
-
 headers = {"Content-Type": "application/json"}
 host = "https://search-photoalbum1-zxyfbjhdsnltkjljkyrdjgcnqy.us-east-1.es.amazonaws.com/photoalbum1/_doc"
 region = 'us-east-1'
@@ -18,46 +18,46 @@ lex = boto3.client('lex-runtime', region_name=region)
 
 
 def lambda_handler(event, context):
-
+    print(event)
     print("EVENT --- {}".format(json.dumps(event)))
-    q1 = 'tree'
-    #q1 = event['query']['q']
-    print('nowww')
+    q1 = event['queryStringParameters']['q']
+
     print(q1)
-    print('now2222')
+
     if(q1 == "searchAudio"):
         q1 = convert_speechtotext()
-
     print("q1:", q1)
     labels = get_labels(q1)
     print("labels", labels)
     if len(labels) == 0:
+        logger.debug('inside if len')
         return
     else:
         img_paths = get_photo_path(labels)
+    logger.debug('before return')
 
-    return {
+    answer = {
         'statusCode': 200,
-        'body': {
-            'imagePaths': img_paths,
+        'body': json.dumps({
+            'imagePaths':img_paths,
             'userQuery': q1,
-            'labels': labels,
+            'labels':  labels
+        }),
+      'headers': {
+           'Access-Control-Allow-Origin': '*'
         },
-        'headers': {
-            'Access-Control-Allow-Origin': '*'
-        }
+        'isBase64Encoded': False
     }
-
-
+    print(type(answer))
+    return answer
 def get_labels(query):
     response = lex.post_text(
         botName='AlbumBot',
-        botAlias='botalias',
+        botAlias='$LATEST',
         userId="test-user",
         inputText=query
     )
     print("lex-response", response)
-
     labels = []
     if 'slots' not in response:
         print("No photo collection for query {}".format(query))
@@ -68,8 +68,6 @@ def get_labels(query):
             if value != None:
                 labels.append(value)
     return labels
-
-
 def get_photo_path(labels):
     img_paths = []
     unique_labels = []
@@ -80,8 +78,10 @@ def get_photo_path(labels):
     print("inside get photo path", labels)
     for i in labels:
         path = host + '/_search?q=labels:'+i
+        print(host)
         print(path)
-        response = requests.get(path, headers=headers,auth=('photo', 'Shrd1216$$$$'))
+        response = requests.get(path, headers=headers,
+                                auth=('photo','Shrd1216$$$$'))
         print("response from ES", response)
         dict1 = json.loads(response.text)
         hits_count = dict1['hits']['total']['value']
@@ -98,16 +98,11 @@ def get_photo_path(labels):
             img_paths.append(img_link)
     print(img_paths)
     return img_paths
-
-
 def convert_speechtotext():
-
     transcribe = boto3.client('transcribe')
-
     job_name = datetime.datetime.now().strftime("%m-%d-%y-%H-%M%S")
     job_uri = "https://awstranscribe-recordings.s3.amazonaws.com/Recording.wav"
     storage_uri = "awstranscribe-output"
-
     s3 = boto3.client('s3')
     transcribe.start_transcription_job(
         TranscriptionJobName=job_name,
@@ -116,7 +111,6 @@ def convert_speechtotext():
         LanguageCode='en-US',
         OutputBucketName=storage_uri
     )
-
     while True:
         status = transcribe.get_transcription_job(
             TranscriptionJobName=job_name)
@@ -124,14 +118,11 @@ def convert_speechtotext():
             break
         print("Not ready yet...")
         time.sleep(5)
-
     print("Transcript URL: ", status)
-
     job_name = str(job_name) + '.json'
     print(job_name)
     obj = s3.get_object(Bucket="awstranscribe-output", Key=job_name)
     print("Object : ", obj)
     body = json.loads(obj['Body'].read().decode('utf-8'))
     print("Body :", body)
-
     return body["results"]["transcripts"][0]["transcript"]
