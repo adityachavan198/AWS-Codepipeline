@@ -8,7 +8,7 @@ import logging
 import boto3
 import requests
 
-
+#added this line
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 headers = {"Content-Type": "application/json"}
