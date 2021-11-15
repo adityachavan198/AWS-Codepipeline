@@ -1,128 +1,156 @@
 import json
-import math
-import dateutil.parser
-import datetime
-import time
-import os
-import logging
 import boto3
+from botocore.exceptions import ClientError
+from requests_aws4auth import AWS4Auth
 import requests
 
-#added this line
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
 headers = {"Content-Type": "application/json"}
-host = "https://search-photoalbum1-zxyfbjhdsnltkjljkyrdjgcnqy.us-east-1.es.amazonaws.com/photoalbum1/_doc"
-region = 'us-east-1'
-lex = boto3.client('lex-runtime', region_name=region)
-
+region = 'us-east-1' # e.g. us-east-1
+service = 'es'
+credentials = boto3.Session().get_credentials()
+awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
 
 def lambda_handler(event, context):
-    print(event)
-    print("EVENT --- {}".format(json.dumps(event)))
-    q1 = event['queryStringParameters']['q']
+    # if event['currentIntent']['name'] == 'Search':
+    #     slotOne = event['currentIntent']['slots']['slotOne']
+    #     slotTwo = event['currentIntent']['slots']['slotTwo']
+    #     return {
+    #     "dialogAction": {
+    #         "type": "Close",
+    #         "fulfillmentState": "Fulfilled",
+    #         "message": {
+    #           "contentType": "PlainText",
+    #           "content": str(slotOne) + str(slotTwo)
+    #           #+ str(Email)
+    #         }
+    #     }
+    # TODO implement
+    #query = 'coffee'
+    query = event['q']
+    client = boto3.client('lex-runtime')
+    response = client.post_text(botName='AlbumBot',
+                                    botAlias='botalias',
+                                    userId='test-user',
+                                    inputText=query)
+    slotOne = response.get('slots').get('slotOne')
+    slotTwo = response.get('slots').get('slotTwo')
+    photo_urls = []
+    print('Slots: ', slotOne, slotTwo)
+    if slotOne is not None:
+        url = "https://search-photoalbum-ux5626rhqbeds4izfxyt44w2be.us-east-1.es.amazonaws.com/photoalbum/photos/_search?from=0&&size=1&&q=labels:"
+        # label = 'car'
+        url = url + slotOne
+        print(url)
+        response = requests.get(url, auth=awsauth, headers=headers).json()
+        hits = response['hits']['hits']
+        if len(hits) > 0:
+            source = hits[0]['_source']
+            print('Source', source)
+        print('Hits', type(hits), hits)
+        s3 = 'https://mysmartphotoalbum.s3.amazonaws.com/'
+        for i in hits:
+            photo_urls.append(s3 + i['_source']['key'])
 
-    print(q1)
+    #for slottwo
+     # label = 'car'
+    if slotTwo is not None:
+        url = "https://search-photoalbum-ux5626rhqbeds4izfxyt44w2be.us-east-1.es.amazonaws.com/photoalbum/photos/_search?from=0&&size=1&&q=labels:"
+        url = url + slotTwo
+        print(url)
+        response = requests.get(url, auth=awsauth, headers=headers).json()
+        hits = response['hits']['hits']
+        if len(hits) > 0:
+            source = hits[0]['_source']
+            print('Source', source)
+        print('Hits', type(hits), hits)
+        s3 = 'https://mysmartphotoalbum.s3.amazonaws.com/'
+        for i in hits:
+            photo_urls.append(s3 + i['_source']['key'])
 
-    if(q1 == "searchAudio"):
-        q1 = convert_speechtotext()
-    print("q1:", q1)
-    labels = get_labels(q1)
-    print("labels", labels)
-    if len(labels) == 0:
-        logger.debug('inside if len')
-        return
-    else:
-        img_paths = get_photo_path(labels)
-    logger.debug('before return')
-
-    answer = {
-        'statusCode': 200,
-        'body': json.dumps({
-            'imagePaths':img_paths,
-            'userQuery': q1,
-            'labels':  labels
-        }),
-      'headers': {
-           'Access-Control-Allow-Origin': '*'
-        },
-        'isBase64Encoded': False
+    data = {
+        'photo_urls': photo_urls
     }
-    print(type(answer))
-    return answer
-def get_labels(query):
-    response = lex.post_text(
-        botName='AlbumBot',
-        botAlias='$LATEST',
-        userId="test-user",
-        inputText=query
-    )
-    print("lex-response", response)
-    labels = []
-    if 'slots' not in response:
-        print("No photo collection for query {}".format(query))
-    else:
-        print("slot: ", response['slots'])
-        slot_val = response['slots']
-        for key, value in slot_val.items():
-            if value != None:
-                labels.append(value)
-    return labels
-def get_photo_path(labels):
-    img_paths = []
-    unique_labels = []
-    for x in labels:
-        if x not in unique_labels:
-            unique_labels.append(x)
-    labels = unique_labels
-    print("inside get photo path", labels)
-    for i in labels:
-        path = host + '/_search?q=labels:'+i
-        print(host)
-        print(path)
-        response = requests.get(path, headers=headers,
-                                auth=('photo','Shrd1216$$$$'))
-        print("response from ES", response)
-        dict1 = json.loads(response.text)
-        hits_count = dict1['hits']['total']['value']
-        print("DICT : ", dict1)
-        for k in range(0, hits_count):
-            img_obj = dict1["hits"]["hits"]
-            img_bucket = dict1["hits"]["hits"][k]["_source"]["bucket"]
-            print("img_bucket", img_bucket)
-            img_name = dict1["hits"]["hits"][k]["_source"]["objectKey"]
-            print("img_name", img_name)
-            img_link = 'https://s3.amazonaws.com/' + \
-                str(img_bucket) + '/' + str(img_name)
-            print(img_link)
-            img_paths.append(img_link)
-    print(img_paths)
-    return img_paths
-def convert_speechtotext():
-    transcribe = boto3.client('transcribe')
-    job_name = datetime.datetime.now().strftime("%m-%d-%y-%H-%M%S")
-    job_uri = "https://awstranscribe-recordings.s3.amazonaws.com/Recording.wav"
-    storage_uri = "awstranscribe-output"
-    s3 = boto3.client('s3')
-    transcribe.start_transcription_job(
-        TranscriptionJobName=job_name,
-        Media={'MediaFileUri': job_uri},
-        MediaFormat='wav',
-        LanguageCode='en-US',
-        OutputBucketName=storage_uri
-    )
-    while True:
-        status = transcribe.get_transcription_job(
-            TranscriptionJobName=job_name)
-        if status['TranscriptionJob']['TranscriptionJobStatus'] in ['COMPLETED', 'FAILED']:
-            break
-        print("Not ready yet...")
-        time.sleep(5)
-    print("Transcript URL: ", status)
-    job_name = str(job_name) + '.json'
-    print(job_name)
-    obj = s3.get_object(Bucket="awstranscribe-output", Key=job_name)
-    print("Object : ", obj)
-    body = json.loads(obj['Body'].read().decode('utf-8'))
-    print("Body :", body)
-    return body["results"]["transcripts"][0]["transcript"]
+    # print(photo_urls)
+    # print(response)
+    return {
+        'statusCode': 200,
+        'body': json.dumps(data)
+    }
+import json
+import boto3
+from botocore.exceptions import ClientError
+from requests_aws4auth import AWS4Auth
+import requests
+
+headers = {"Content-Type": "application/json"}
+region = 'us-east-1' # e.g. us-east-1
+service = 'es'
+credentials = boto3.Session().get_credentials()
+awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
+
+def lambda_handler(event, context):
+    # if event['currentIntent']['name'] == 'Search':
+    #     slotOne = event['currentIntent']['slots']['slotOne']
+    #     slotTwo = event['currentIntent']['slots']['slotTwo']
+    #     return {
+    #     "dialogAction": {
+    #         "type": "Close",
+    #         "fulfillmentState": "Fulfilled",
+    #         "message": {
+    #           "contentType": "PlainText",
+    #           "content": str(slotOne) + str(slotTwo)
+    #           #+ str(Email)
+    #         }
+    #     }
+    # TODO implement
+    #query = 'coffee'
+    query = event['q']
+    client = boto3.client('lex-runtime')
+    response = client.post_text(botName='AlbumBot',
+                                    botAlias='botalias',
+                                    userId='test-user',
+                                    inputText=query)
+    slotOne = response.get('slots').get('slotOne')
+    slotTwo = response.get('slots').get('slotTwo')
+    photo_urls = []
+    print('Slots: ', slotOne, slotTwo)
+    if slotOne is not None:
+        url = "https://search-photoalbum-ux5626rhqbeds4izfxyt44w2be.us-east-1.es.amazonaws.com/photoalbum/photos/_search?from=0&&size=1&&q=labels:"
+        # label = 'car'
+        url = url + slotOne
+        print(url)
+        response = requests.get(url, auth=awsauth, headers=headers).json()
+        hits = response['hits']['hits']
+        if len(hits) > 0:
+            source = hits[0]['_source']
+            print('Source', source)
+        print('Hits', type(hits), hits)
+        s3 = 'https://mysmartphotoalbum.s3.amazonaws.com/'
+        for i in hits:
+            photo_urls.append(s3 + i['_source']['key'])
+
+    #for slottwo
+     # label = 'car'
+    if slotTwo is not None:
+        url = "https://search-photoalbum-ux5626rhqbeds4izfxyt44w2be.us-east-1.es.amazonaws.com/photoalbum/photos/_search?from=0&&size=1&&q=labels:"
+        url = url + slotTwo
+        print(url)
+        response = requests.get(url, auth=awsauth, headers=headers).json()
+        hits = response['hits']['hits']
+        if len(hits) > 0:
+            source = hits[0]['_source']
+            print('Source', source)
+        print('Hits', type(hits), hits)
+        s3 = 'https://mysmartphotoalbum.s3.amazonaws.com/'
+        for i in hits:
+            photo_urls.append(s3 + i['_source']['key'])
+
+    data = {
+        'photo_urls': photo_urls
+    }
+    # print(photo_urls)
+    # print(response)
+    return {
+        'statusCode': 200,
+        'body': json.dumps(data)
+    }
