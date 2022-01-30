@@ -3,7 +3,7 @@ Resources:
   IndexLambda:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: indexlambda25
+      FunctionName: indexlambda24
       Handler: lambda/index.lambda_handler
       Role:
         'Fn::GetAtt':
