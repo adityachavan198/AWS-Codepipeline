@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  IndexLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: indexlambda23
+      Handler: lambda/index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - IndexLambdaRole6
+          - Arn
+      Code:
+        S3Bucket: cloudformationbuc
+        S3Key: indexalbum.zip
+      Runtime: python3.8
+      Timeout: 300
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b342b1f1-0020-438b-bfcf-d5a974987866
+  IndexLambdaRole6:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: IndexLambdaRole6
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AWSLambdaBasicExecutionRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+        - PolicyName: AmazonS3FullAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 's3:*'
+                Resource:
+                  - 'arn:aws:s3:::exchange-data-raw'
+                  - 'arn:aws:s3:::exchange-data-raw/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 749f7852-7ed4-4165-aaee-8641ee59c693
+  SearchLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: searchlambda2
+      Handler: lambda/index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - SearchLambdaRole6
+          - Arn
+      Code:
+        S3Bucket: cloudformationbuc
+        S3Key: image-search.zip
+      Runtime: python3.8
+      Timeout: 300
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 39351f3f-5dfb-459a-b806-3882d3d72d0b
+  SearchLambdaRole6:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: SearchLambdaRole6
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AWSLambdaBasicExecutionRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+        - PolicyName: AmazonS3FullAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 's3:*'
+                Resource:
+                  - 'arn:aws:s3:::exchange-data-raw'
+                  - 'arn:aws:s3:::exchange-data-raw/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c533aca7-5fdd-42a9-af73-ab6c497aeb90
+  ElasticSearchCluster:
+    Type: 'AWS::Elasticsearch::Domain'
+    Properties:
+      DomainName: test-elasticsearch-2
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: 'arn:aws:iam::*************:user/test'
+      ElasticsearchVersion: 7.1
+      EncryptionAtRestOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: 'true'
+        DedicatedMasterType: t3.small.elasticsearch
+        DedicatedMasterCount: '3'
+        InstanceCount: 1
+        InstanceType: t3.small.elasticsearch
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+        VolumeType: gp2
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: 'arn:aws:es:us-east-1:***********:domain/test-elasticsearch/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 16b4618e-4da7-4bd5-8747-25601dea60f5
+Metadata:
+  'AWS::CloudFormation::Designer':
+    16b4618e-4da7-4bd5-8747-25601dea60f5:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 90
+      z: 1
+      embeds: []
+    c533aca7-5fdd-42a9-af73-ab6c497aeb90:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 90
+      z: 1
+      embeds: []
+    39351f3f-5dfb-459a-b806-3882d3d72d0b:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 210
+      z: 1
+      embeds: []
+    749f7852-7ed4-4165-aaee-8641ee59c693:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 210
+      z: 1
+      embeds: []
+    b342b1f1-0020-438b-bfcf-d5a974987866:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 90
+      z: 1
+      embeds: []
