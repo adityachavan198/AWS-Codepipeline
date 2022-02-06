@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: 2010-09-09
 Resources:
   IndexLambda:
     Type: 'AWS::Lambda::Function'
-    Properties:
+    Properties: 
       FunctionName: indexlambda24
       Handler: lambda/index.lambda_handler
       Role:
